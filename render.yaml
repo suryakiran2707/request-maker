@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: request-maker
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: RENDER
+        value: "true"
+      - key: PORT
+        value: "3000"
