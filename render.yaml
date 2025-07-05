@@ -2,10 +2,7 @@ services:
   - type: web
     name: request-maker
     env: node
-    buildCommand: npm install
-    startCommand: npm start
-    envVars:
-      - key: RENDER
-        value: "true"
-      - key: PORT
-        value: "3000"
+    plan: free
+    branch: main
+    buildCommand: ./render-build.sh
+    startCommand: npm run api
