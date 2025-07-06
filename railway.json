@@ -7,7 +7,7 @@
   "deploy": {
     "runtime": "V2",
     "numReplicas": 1,
-    "startCommand": "npm run api",
+    "startCommand": "npm run both",
     "sleepApplication": false,
     "multiRegionConfig": {
       "europe-west4-drams3a": {
