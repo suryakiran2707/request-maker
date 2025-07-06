@@ -2,11 +2,18 @@ import { chromium } from 'playwright';
 import { writeFile, mkdir, readdir, unlink } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import twilio from 'twilio';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 
 const productAlias = 'amul-high-protein-milk-250-ml-or-pack-of-32';
 const productUrl = `https://shop.amul.com/en/product/${productAlias}`;
 const apiPattern = '/api/1/entity/ms.products?fields';
 const userPincode = '500084'; // Telangana / Hyderabad
+let prevData = [];
+let currData = [];
 
 // Store global variables
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,6 +49,7 @@ async function runCheckProcess() {
   // Clean up files before each run
   console.log('Cleaning up previous files...');
   await cleanupFiles();
+  currData = [];
 
   // Check if we're running on Railway/Render to determine headless mode
   const isProduction = process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;
@@ -113,8 +121,9 @@ async function runCheckProcess() {
         console.log(`  ✅ Saved inventory data to: ${filename}`);
         console.log(`  Inventory quantity: ${JSON.stringify(extractedData)}`);
         console.log('next one started');
+        currData.push(...extractedData);
       } catch (error) {
-        console.log('  (non‑JSON or parse error)');
+        console.log(`  ❌ error: ${error.message}`);
       }
     }
   });
@@ -173,6 +182,11 @@ async function runCheckProcess() {
   
   const endTime = new Date();
   const duration = (endTime - startTime) / 1000;
+
+  if (prevData.length > 0) {
+    compareAndSendSMS(currData, prevData);
+  }
+  prevData = currData;
   console.log(`=== Finished run #${runCount} at ${endTime.toLocaleTimeString()} (took ${duration.toFixed(1)}s) ===`);
   console.log(`Next run scheduled in 3 minutes.`);
 }
@@ -187,6 +201,41 @@ async function safeRunCheckProcess() {
   }
 }
 
+async function compareAndSendSMS(newData, prevData) {
+  console.log('Comparing new data with previous data...');
+  console.log('New data:', newData);
+  console.log('Previous data:', prevData);
+  var prevDataMap = new Map();
+  prevData.forEach(item => {
+    prevDataMap.set(item.alias, item);
+  });
+  newData.forEach(item => {
+    if (item.name.includes('amul-high-protein-milk') && prevDataMap.get(item.alias)?.inventory_quantity === 0 && item.inventory_quantity > 0) {
+      sendSMS('+918688288381', `Product ${item.name} is back in stock!`);
+    }
+  });
+}
+
+async function sendSMS(to, message) {
+  try {
+    // Make sure the "from" number is a Twilio-provided phone number
+    if (!process.env.TWILIO_PHONE.startsWith('+')) {
+      console.error('❌ TWILIO_PHONE must start with + followed by country code (e.g., +1xxxxxxxxxx)');
+      return;
+    }
+    
+    var res = await client.messages.create({
+      body: message,
+      from: process.env.TWILIO_PHONE,
+      to: to,
+    });
+
+    console.log('✅ SMS sent:', res.sid);
+  } catch (err) {
+    console.error('❌ Failed to send SMS:', err.message);
+  }
+}
+
 // Start the first run immediately with error handling
 try {
   await safeRunCheckProcess();
@@ -196,4 +245,4 @@ try {
 
 // Then schedule it to run every 3 minutes with error handling
 console.log('Scheduled to run every 3 minutes. Press Ctrl+C to stop.');
-setInterval(safeRunCheckProcess, 3 * 60 * 1000); // 3 minutes in milliseconds
+setInterval(safeRunCheckProcess, 60 * 1000); // 3 minutes in milliseconds
