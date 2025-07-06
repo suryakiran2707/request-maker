@@ -141,21 +141,31 @@ async function runCheckProcess() {
     console.log('⚠️ Pincode input not detected — maybe already set or site changed');
   }
 
-  // Scroll to trigger lazy load
-  await page.evaluate(async () => {
-    await new Promise((resolve) => {
-      let total = 0, distance = 200;
-      const timer = setInterval(() => {
-        window.scrollBy(0, distance);
-        total += distance;
-        if (total >= document.body.scrollHeight) {
-          clearInterval(timer);
-          resolve();
-        }
-      }, 200);
-    });
+  // Wait longer for the page to stabilize after pincode submission
+  console.log('Waiting for page to stabilize...');
+  await page.waitForTimeout(3000);
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(err => {
+    console.log('Network not fully idle, but continuing...');
   });
-
+  
+  // Scroll to trigger lazy load with better error handling
+  console.log('Starting scroll action...');
+  try {
+    // Use a simpler scrolling approach that's less likely to break
+    for (let i = 0; i < 5; i++) {
+      await page.evaluate(() => {
+        window.scrollBy(0, window.innerHeight);
+      }).catch(err => console.log('Scroll step had an issue, continuing...'));
+      
+      // Small pause between scrolls
+      await page.waitForTimeout(500);
+    }
+    console.log('Scrolling completed successfully');
+  } catch (err) {
+    console.log('Error during scrolling, but continuing:', err.message);
+  }
+  
+  // Wait a bit more after scrolling
   await page.waitForTimeout(5000);
   console.log(`\n✅ Done: captured ${count} API response(s).`);
 
@@ -167,9 +177,23 @@ async function runCheckProcess() {
   console.log(`Next run scheduled in 3 minutes.`);
 }
 
-// Start the first run immediately
-await runCheckProcess();
+// Wrapper function to prevent crashes
+async function safeRunCheckProcess() {
+  try {
+    await runCheckProcess();
+  } catch (error) {
+    console.error(`\n❌ Error in runCheckProcess: ${error.message}`);
+    console.error('Process will retry at next scheduled interval');
+  }
+}
 
-// Then schedule it to run every 3 minutes
+// Start the first run immediately with error handling
+try {
+  await safeRunCheckProcess();
+} catch (error) {
+  console.error(`\n❌ Fatal error in first run: ${error.message}`);
+}
+
+// Then schedule it to run every 3 minutes with error handling
 console.log('Scheduled to run every 3 minutes. Press Ctrl+C to stop.');
-setInterval(runCheckProcess, 3 * 60 * 1000); // 3 minutes in milliseconds
+setInterval(safeRunCheckProcess, 3 * 60 * 1000); // 3 minutes in milliseconds
