@@ -1,0 +1,16 @@
+[phases.setup]
+nixPackages = ['nodejs_18']
+
+[phases.install]
+cmds = [
+  'rm -f yarn.lock', 
+  'npm config set registry https://registry.npmjs.org/',
+  'npm install'
+]
+cacheDirectories = []
+
+[phases.build]
+cmds = ['chmod +x ./render-build.sh && sh ./render-build.sh']
+
+[start]
+cmd = 'npm run api'
