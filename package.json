@@ -8,10 +8,10 @@
   "start": "node api-server.mjs",
   "dev": "node index.mjs",
   "api": "node api-server.mjs",
+  "both": "node index.mjs & node api-server.mjs",
   "build": "echo \"no build\"",
   "test": "echo \"Error: no test specified\" && exit 1"
-}
-,
+},
   "keywords": [],
   "author": "",
   "license": "ISC",

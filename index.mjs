@@ -43,7 +43,14 @@ async function runCheckProcess() {
   console.log('Cleaning up previous files...');
   await cleanupFiles();
 
-  const browser = await chromium.launch({ headless: false });
+  // Check if we're running on Railway/Render to determine headless mode
+  const isProduction = process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;
+  console.log(`Running in ${isProduction ? 'production (headless)' : 'development (non-headless)'} mode`);
+  
+  const browser = await chromium.launch({ 
+    headless: isProduction ? true : false,
+    args: isProduction ? ['--no-sandbox'] : [] // Additional args for containerized environments
+  });
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
     viewport: { width: 1280, height: 800 },

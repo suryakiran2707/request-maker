@@ -13,4 +13,4 @@ cacheDirectories = []
 cmds = ['chmod +x ./render-build.sh && sh ./render-build.sh']
 
 [start]
-cmd = 'npm run api'
+cmd = 'npm run both'
