@@ -185,6 +185,8 @@ async function runCheckProcess() {
 
   if (prevData.length > 0) {
     compareAndSendSMS(currData, prevData);
+  } else {
+    sendSMS('+918688288381', `Application is active`);
   }
   prevData = currData;
   console.log(`=== Finished run #${runCount} at ${endTime.toLocaleTimeString()} (took ${duration.toFixed(1)}s) ===`);
@@ -210,7 +212,7 @@ async function compareAndSendSMS(newData, prevData) {
     prevDataMap.set(item.alias, item);
   });
   newData.forEach(item => {
-    if (item.name.includes('amul-high-protein-milk') && prevDataMap.get(item.alias)?.inventory_quantity === 0 && item.inventory_quantity > 0) {
+    if (prevDataMap.get(item.alias)?.inventory_quantity === 0 && item.inventory_quantity > 0) {
       sendSMS('+918688288381', `Product ${item.name} is back in stock!`);
     }
   });
