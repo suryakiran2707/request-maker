@@ -20,6 +20,7 @@
     "axios-cookiejar-support": "^6.0.3",
     "dotenv": "^17.0.1",
     "express": "^5.1.0",
+    "nodemailer": "^7.0.4",
     "playwright": "^1.53.2",
     "tough-cookie": "^5.1.2",
     "twilio": "^5.7.2"

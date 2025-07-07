@@ -3,6 +3,7 @@ import { writeFile, mkdir, readdir, unlink } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import twilio from 'twilio';
+import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -184,9 +185,9 @@ async function runCheckProcess() {
   const duration = (endTime - startTime) / 1000;
 
   if (prevData.length > 0) {
-    compareAndSendSMS(currData, prevData);
+    await compareAndSendSMS(currData, prevData);
   } else {
-    sendSMS('+918688288381', `Application is active`);
+    await sendSMS('+918688288381', `Application is active`, 'app_status');
   }
   prevData = currData;
   console.log(`=== Finished run #${runCount} at ${endTime.toLocaleTimeString()} (took ${duration.toFixed(1)}s) ===`);
@@ -211,18 +212,85 @@ async function compareAndSendSMS(newData, prevData) {
   prevData.forEach(item => {
     prevDataMap.set(item.alias, item);
   });
-  newData.forEach(item => {
+  
+  // Use for...of to properly handle awaits
+  for (const item of newData) {
     if (prevDataMap.get(item.alias)?.inventory_quantity === 0 && item.inventory_quantity > 0) {
-      sendSMS('+918688288381', `Product ${item.name} is back in stock!`);
+      // Wait for notification to complete
+      await sendSMS('+918688288381', `Product ${item.name} is back in stock!`, 'stock_alert');
     }
-  });
+  }
 }
 
-async function sendSMS(to, message) {
+// Function to send email as fallback notification
+async function sendEmail(to, subject, message) {
+  try {
+    // Check required environment variables
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('❌ EMAIL_USER and EMAIL_PASS environment variables must be set');
+      return false;
+    }
+    
+    // Handle multiple recipients (comma-separated emails)
+    const recipients = Array.isArray(to) ? to.join(',') : to;
+    
+    // Create transporter
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', // Change as needed based on your email provider
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS // Use app password for Gmail
+      }
+    });
+    
+    // Send email
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: recipients,
+      subject: subject,
+      text: message,
+      html: `<p>${message}</p>`
+    });
+    
+    console.log('✅ Email sent to:', recipients);
+    console.log('Message ID:', info.messageId);
+    return true;
+  } catch (err) {
+    console.error('❌ Failed to send email:', err.message);
+    return false;
+  }
+}
+
+// Get notification recipients based on notification type
+function getEmailRecipients(notificationType) {
+  // Default to FALLBACK_EMAIL if not specified
+  const fallbackEmail = process.env.FALLBACK_EMAIL || '';
+  
+  // Check for different notification type recipients in env
+  switch (notificationType) {
+    case 'stock_alert':
+      // Use STOCK_ALERT_EMAILS if defined, otherwise fall back to default
+      return process.env.STOCK_ALERT_EMAILS || fallbackEmail;
+    case 'app_status':
+      return process.env.STATUS_EMAILS || fallbackEmail;
+    case 'error':
+      return process.env.ERROR_EMAILS || fallbackEmail;
+    default:
+      return fallbackEmail;
+  }
+}
+
+async function sendSMS(to, message, notificationType = 'stock_alert') {
   try {
     // Make sure the "from" number is a Twilio-provided phone number
     if (!process.env.TWILIO_PHONE.startsWith('+')) {
       console.error('❌ TWILIO_PHONE must start with + followed by country code (e.g., +1xxxxxxxxxx)');
+      // Try email as fallback
+      const recipients = getEmailRecipients(notificationType);
+      if (recipients) {
+        console.log('Attempting email fallback...');
+        await sendEmail(recipients, `Inventory Alert - ${notificationType}`, message);
+      }
       return;
     }
     
@@ -233,8 +301,17 @@ async function sendSMS(to, message) {
     });
 
     console.log('✅ SMS sent:', res.sid);
+    return true;
   } catch (err) {
     console.error('❌ Failed to send SMS:', err.message);
+    
+    // Try email as fallback if SMS fails
+    const recipients = getEmailRecipients(notificationType);
+    if (recipients) {
+      console.log('SMS failed. Attempting email fallback...');
+      await sendEmail(recipients, `Inventory Alert (SMS Failed) - ${notificationType}`, message);
+    }
+    return false;
   }
 }
 
@@ -247,4 +324,4 @@ try {
 
 // Then schedule it to run every 3 minutes with error handling
 console.log('Scheduled to run every 3 minutes. Press Ctrl+C to stop.');
-setInterval(safeRunCheckProcess, 60 * 1000); // 3 minutes in milliseconds
+setInterval(safeRunCheckProcess, 3 * 60 * 1000); // 3 minutes in milliseconds
