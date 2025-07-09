@@ -9,8 +9,7 @@ dotenv.config();
 
 const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 
-const productAlias = 'amul-high-protein-milk-250-ml-or-pack-of-32';
-const productUrl = `https://shop.amul.com/en/product/${productAlias}`;
+const productUrl = `https://shop.amul.com/en/browse/protein`;
 const apiPattern = '/api/1/entity/ms.products?fields';
 const userPincode = '500084'; // Telangana / Hyderabad
 let prevData = [];
@@ -58,7 +57,16 @@ async function runCheckProcess() {
   
   const browser = await chromium.launch({ 
     headless: isProduction ? true : false,
-    args: isProduction ? ['--no-sandbox'] : [] // Additional args for containerized environments
+    args: isProduction ? [
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-setuid-sandbox',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process', // This is important to avoid the EAGAIN error
+      '--disable-gpu'
+    ] : [] // Additional args for containerized environments
   });
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
